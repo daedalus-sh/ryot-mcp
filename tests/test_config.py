@@ -47,3 +47,11 @@ def test_secrets_stay_out_of_repr(tmp_path: Path) -> None:
 def test_refuses(extra: dict[str, str], needle: str) -> None:
     with pytest.raises(config.ConfigError, match=needle):
         config.load({**OK, **extra})
+
+
+def test_login_needs_a_state_dir_but_no_bearer(tmp_path: Path) -> None:
+    env = {"RYOT_URL": "http://ryot:8000"}
+    with pytest.raises(config.ConfigError, match="RYOT_STATE_DIR"):
+        config.load(env, serving=False)
+    s = config.load({**env, "RYOT_STATE_DIR": str(tmp_path)}, serving=False)
+    assert s.state_dir == tmp_path and s.token == ""

@@ -91,11 +91,15 @@ def _renew_days(value: str) -> int:
     return int(value)
 
 
-def load(env: Mapping[str, str] | None = None) -> Settings:
+def load(env: Mapping[str, str] | None = None, *, serving: bool = True) -> Settings:
+    """The server's settings; with serving=False, what `login` and `status` need
+    (no bearer token, and a state directory is required)."""
     env = os.environ if env is None else env
     token = env.get("MCP_BEARER_TOKEN", "")
-    if len(token) < MIN_TOKEN:
+    if serving and len(token) < MIN_TOKEN:
         raise ConfigError(f"MCP_BEARER_TOKEN must be set (at least {MIN_TOKEN} characters)")
+    if not serving and not env.get("RYOT_STATE_DIR", "").strip():
+        raise ConfigError("RYOT_STATE_DIR must be set: login saves the session there")
     host, port = _listen(env.get("MCP_LISTEN", DEFAULT_LISTEN))
     return Settings(
         token=token,

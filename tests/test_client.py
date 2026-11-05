@@ -102,3 +102,36 @@ def test_unreachable(fake: FakeRyot) -> None:
     ryot, _ = make(fake)
     with pytest.raises(Unavailable):
         run(ryot.session())
+
+
+def test_adopt_replaces_the_token_and_saves_the_replacement(fake: FakeRyot, clock: Clock, tmp_path: Path) -> None:
+    fake.sessions.add("pasted")
+    ryot, _ = make(fake, clock, seed=None, state_dir=tmp_path)
+    me = run(ryot.adopt("Bearer pasted\n"))
+    assert me.name == "santi"
+    assert json.loads((tmp_path / "session.json").read_text())["token"] == "minted-1"
+    assert run(ryot.session()) == "minted-1"
+
+
+def test_adopt_refuses_a_token_ryot_does_not_accept(fake: FakeRyot, tmp_path: Path) -> None:
+    ryot, _ = make(fake, seed=None, state_dir=tmp_path)
+    with pytest.raises(AuthFailed, match="did not accept"):
+        run(ryot.adopt("nonsense"))
+    assert not (tmp_path / "session.json").exists()
+
+
+def test_status_reports_age_without_the_session(fake: FakeRyot, clock: Clock, tmp_path: Path) -> None:
+    ryot, _ = make(fake, clock, state_dir=tmp_path)
+    assert run(ryot.saved_status()) == {"saved": False}
+    run(ryot.session())
+    clock.now += timedelta(days=3)
+    status = run(ryot.saved_status())
+    assert status == {
+        "saved": True,
+        "accepted": True,
+        "user": "santi",
+        "minted_at": "2026-11-05T12:00:00+00:00",
+        "age_days": 3,
+        "renews_after_days": 30,
+    }
+    assert "minted-1" not in json.dumps(status)

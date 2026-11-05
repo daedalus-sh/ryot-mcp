@@ -1,7 +1,21 @@
-"""ryot-mcp: run the server."""
+"""ryot-mcp: run the server, or sign it in.
+
+    ryot-mcp           serve MCP on MCP_LISTEN
+    ryot-mcp login     read a token minted in Ryot (Settings › Integrations ›
+                       Generate auth token) from the terminal, without echo,
+                       or from stdin; replace it with a session this server
+                       mints, and save that in RYOT_STATE_DIR
+    ryot-mcp status    whether a saved session exists, how old it is, and
+                       whether Ryot accepts it (never the session itself)
+
+A running server picks up a session `login` saved on its next call: no
+restart."""
 
 from __future__ import annotations
 
+import asyncio
+import getpass
+import json
 import logging
 import sys
 
@@ -9,21 +23,48 @@ import uvicorn
 
 from . import config
 from .client import Ryot
+from .errors import RyotError
 from .server import build_app
 from .service import Tracker
 
+PROMPT = "Ryot token (Settings › Integrations › Generate auth token): "
 
-def main() -> None:
-    logging.basicConfig(level=logging.INFO, format="%(levelname)s %(name)s: %(message)s", stream=sys.stderr)
-    # One line per tool call is ours; the libraries' per-request lines (with
-    # URLs and search terms) stay out of the log.
-    for noisy in ("httpx", "httpcore", "mcp"):
-        logging.getLogger(noisy).setLevel(logging.WARNING)
+
+def _read_token() -> str:
+    if sys.stdin.isatty():
+        return getpass.getpass(PROMPT)
+    return sys.stdin.readline()
+
+
+async def _login(settings: config.Settings) -> int:
+    ryot = Ryot(settings)
     try:
-        settings = config.load()
-    except config.ConfigError as exc:
-        print(f"ryot-mcp: {exc}", file=sys.stderr)
-        sys.exit(2)
+        me = await ryot.adopt(_read_token())
+    except RyotError as err:
+        print(f"ryot-mcp: {err.message}", file=sys.stderr)
+        return 1
+    finally:
+        await ryot.aclose()
+    print(
+        f"Signed in to Ryot as {me.name}. The server now holds its own session, renewed every {settings.renew_after_days} days."
+    )
+    return 0
+
+
+async def _status(settings: config.Settings) -> int:
+    ryot = Ryot(settings)
+    try:
+        status = await ryot.saved_status()
+    except RyotError as err:
+        print(f"ryot-mcp: {err.message}", file=sys.stderr)
+        return 1
+    finally:
+        await ryot.aclose()
+    print(json.dumps(status, indent=2))
+    return 0 if status.get("accepted") else 1
+
+
+def _serve(settings: config.Settings) -> None:
     ryot = Ryot(settings)
     logging.getLogger("ryot_mcp").info(
         "Ryot at %s; seed session %s; state %s",
@@ -33,6 +74,28 @@ def main() -> None:
     )
     app = build_app(settings.token, ryot, Tracker(ryot))
     uvicorn.run(app, host=settings.listen_host, port=settings.listen_port, access_log=False, log_level="warning")
+
+
+def main() -> None:
+    logging.basicConfig(level=logging.INFO, format="%(levelname)s %(name)s: %(message)s", stream=sys.stderr)
+    # One line per tool call is ours; the libraries' per-request lines (with
+    # URLs and search terms) stay out of the log.
+    for noisy in ("httpx", "httpcore", "mcp"):
+        logging.getLogger(noisy).setLevel(logging.WARNING)
+    command = sys.argv[1] if len(sys.argv) > 1 else "serve"
+    if command not in ("serve", "login", "status") or len(sys.argv) > 2:
+        print("usage: ryot-mcp [serve | login | status]", file=sys.stderr)
+        sys.exit(2)
+    try:
+        settings = config.load(serving=command == "serve")
+    except config.ConfigError as exc:
+        print(f"ryot-mcp: {exc}", file=sys.stderr)
+        sys.exit(2)
+    if command == "login":
+        sys.exit(asyncio.run(_login(settings)))
+    if command == "status":
+        sys.exit(asyncio.run(_status(settings)))
+    _serve(settings)
 
 
 if __name__ == "__main__":

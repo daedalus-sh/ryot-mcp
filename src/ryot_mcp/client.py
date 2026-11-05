@@ -198,6 +198,37 @@ class Ryot:
                 self._held = await self._mint(self._held.token)
             return self._held.token
 
+    async def adopt(self, token: str) -> Me:
+        """Take a session the user minted: check it, replace it at once with
+        one this server mints, and save that. What `ryot-mcp login` does."""
+        token = token.strip().removeprefix("Bearer ").strip()
+        if not token or await self._me(token) is None:
+            raise AuthFailed("Ryot did not accept that token: mint a new one in Ryot › Settings › Integrations")
+        async with self._lock:
+            self._held = await self._mint(token)
+            held = self._held
+        me = await self._me(held.token)
+        if me is None:
+            raise UpstreamError("the session Ryot just minted is not accepted")
+        return me
+
+    async def saved_status(self) -> dict[str, Any]:
+        """What `ryot-mcp status` prints: never the session itself."""
+        saved = self._load_saved()
+        if saved is None:
+            return {"saved": False}
+        me = await self._me(saved.token)
+        assert saved.minted_at is not None
+        age = self._clock() - saved.minted_at
+        return {
+            "saved": True,
+            "accepted": me is not None,
+            "user": me.name if me else None,
+            "minted_at": saved.minted_at.isoformat(),
+            "age_days": age.days,
+            "renews_after_days": self.settings.renew_after_days,
+        }
+
     async def renew_if_due(self) -> None:
         """For the background loop: renew if due, never raise."""
         try:

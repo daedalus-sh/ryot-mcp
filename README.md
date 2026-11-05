@@ -57,18 +57,20 @@ Ryot authenticates with a session token, and a session lasts
 `USERS_TOKEN_VALID_FOR_DAYS` (90 by default) from when it was minted, however
 often it is used. So the server holds its own:
 
-1. You mint one in Ryot: **Settings › Integrations › Generate auth token**,
-   and give it to the server as `RYOT_SESSION`.
-2. On start the server checks it and at once mints a fresh one from it with
+1. You mint one in Ryot: **Settings › Integrations › Generate auth token**.
+2. You hand it over with `ryot-mcp login` (it asks without echo, or reads
+   stdin), or as `RYOT_SESSION` in the environment.
+3. The server checks it and at once mints a fresh one from it with
    `generateAuthToken`, so it knows its age. With `RYOT_STATE_DIR` set, it
-   saves that one (`session.json`, mode 0600) and prefers it on every later
-   start.
-3. Every 6 hours it checks, and once the session it holds is
+   saves that one (`session.json`, mode 0600) and prefers it from then on;
+   a running server picks it up on its next call.
+4. Every 6 hours it checks, and once the session it holds is
    `RYOT_RENEW_AFTER_DAYS` old (30 by default), mints the next.
 
-So the token you minted is only needed until the first start. If the server
-was stopped longer than a session lasts, mint a new one and restart it.
-`GET /healthz` answers `ok` only while Ryot accepts the session.
+So the token you minted is used once. If the server was stopped longer than
+a session lasts, mint a new one and log in again. `ryot-mcp status` says
+whether a saved session exists, how old it is and whether Ryot accepts it,
+without printing it; `GET /healthz` answers `ok` only while Ryot accepts it.
 
 ## Configuration
 
