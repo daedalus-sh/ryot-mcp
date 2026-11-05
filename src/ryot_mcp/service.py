@@ -428,7 +428,7 @@ class Tracker:
         if manga and manga.get("chapters") is not None:
             out["chapters"] = _dec(manga["chapters"])
         if details.get("creators"):
-            out["people"] = await self._people(details["creators"])
+            out["people"] = await self._people(details["creators"]) or None
         own_reviews = [r for r in mine.get("reviews") or [] if (r.get("postedBy") or {}).get("id") == me.id]
         mine_out: dict[str, Any] = {
             "times_seen": mine.get("seenByUserCount", 0),
