@@ -1,0 +1,37 @@
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "ryot-mcp"
+version = "0.1.0"
+description = "MCP server for Ryot: search titles, log what was watched, played and read, rate and review, keep the Watchlist"
+readme = "README.md"
+license = "MIT"
+requires-python = ">=3.12"
+dependencies = [
+  "httpx>=0.27",
+  "mcp>=1.26",
+  "starlette",
+  "uvicorn",
+]
+
+[project.optional-dependencies]
+test = ["pytest"]
+
+[project.scripts]
+ryot-mcp = "ryot_mcp.__main__:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+
+[tool.ruff]
+line-length = 130
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "B", "UP"]
+ignore = ["E501"]
