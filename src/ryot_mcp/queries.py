@@ -182,3 +182,9 @@ mutation CreateUserNotificationPlatform($input: CreateUserNotificationPlatformIn
   createUserNotificationPlatform(input: $input)
 }
 """
+
+SYNCED_COLLECTIONS = """
+query SyncedCollections {
+  userIntegrations { provider isDisabled providerSpecifics { radarrSyncCollectionIds sonarrSyncCollectionIds } }
+}
+"""

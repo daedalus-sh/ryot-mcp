@@ -9,7 +9,13 @@ your Watchlist.
 
 It signs in to Ryot as one user, with a session that user minted, and keeps
 that session alive by itself. It speaks MCP over streamable HTTP behind a
-bearer token. Nothing here downloads anything or touches another user.
+bearer token. It touches no other user's data, but a public review is visible
+to them.
+
+**One tool can start a download.** When a Ryot integration sends a
+collection to Radarr or Sonarr, adding a title to that collection makes them
+search for it and download it. `add_to_collection` refuses such a collection
+(`would_download`) unless the call passes `download: true`.
 
 Written against Ryot v10 (tested with 10.5.6). Ryot v11 is a rewrite with a
 new API; this server will need a new release for it.
@@ -37,13 +43,13 @@ Write
 | `start` | You started it. |
 | `update_progress` | What is in progress: a percent, or completed, dropped or on hold. |
 | `review` | A rating out of 10 (converted to your Ryot scale) and/or a text; private unless asked; one review can be edited. |
-| `add_to_collection`, `remove_from_collection` | Watchlist (or any collection) membership. Idempotent. |
+| `add_to_collection`, `remove_from_collection` | Watchlist (or any collection) membership. Idempotent. Adding to a collection Ryot sends to Radarr or Sonarr downloads the title, so it needs `download: true`. |
 | `create_collection` | A collection of your own; returns the existing one if the name is taken. |
 | `remove_seen`, `delete_review` | Undo a wrong entry. Destructive. |
 
 Annotations are honest: `readOnlyHint` on reads; `idempotentHint` false on
 `log_seen`, `start` and `review`, each of which adds an entry every call; and
-`destructiveHint` on the two that delete. Ryot applies progress and
+`destructiveHint` on the two that delete, and `openWorldHint` on `add_to_collection`, the one that can start a download. Ryot applies progress and
 collection changes in the background, so a read straight after one may not
 show it yet.
 

@@ -22,24 +22,24 @@ from ryot_mcp.server import INSTRUCTIONS, build_app
 from ryot_mcp.service import Tracker
 
 EXPECTED = {
-    # name: (readOnly, destructive, idempotent)
-    "search": (True, False, True),
-    "get_title": (True, False, True),
-    "similar": (True, False, True),
-    "trending": (True, False, True),
-    "my_media": (True, False, True),
-    "list_collections": (True, False, True),
-    "get_collection": (True, False, True),
-    "upcoming": (True, False, True),
-    "log_seen": (False, False, False),
-    "start": (False, False, False),
-    "update_progress": (False, False, True),
-    "remove_seen": (False, True, True),
-    "review": (False, False, False),
-    "delete_review": (False, True, True),
-    "add_to_collection": (False, False, True),
-    "remove_from_collection": (False, False, True),
-    "create_collection": (False, False, True),
+    # name: (readOnly, destructive, idempotent, openWorld)
+    "search": (True, False, True, False),
+    "get_title": (True, False, True, False),
+    "similar": (True, False, True, False),
+    "trending": (True, False, True, False),
+    "my_media": (True, False, True, False),
+    "list_collections": (True, False, True, False),
+    "get_collection": (True, False, True, False),
+    "upcoming": (True, False, True, False),
+    "log_seen": (False, False, False, False),
+    "start": (False, False, False, False),
+    "update_progress": (False, False, True, False),
+    "remove_seen": (False, True, True, False),
+    "review": (False, False, False, False),
+    "delete_review": (False, True, True, False),
+    "add_to_collection": (False, False, True, True),
+    "remove_from_collection": (False, False, True, False),
+    "create_collection": (False, False, True, False),
 }
 
 
@@ -93,9 +93,9 @@ def test_tools_and_annotations(server: Running) -> None:
     assert "untrusted" in INSTRUCTIONS
     got = {t.name: t for t in listed.tools}
     assert set(got) == set(EXPECTED)
-    for name, (ro, destructive, idem) in EXPECTED.items():
+    for name, (ro, destructive, idem, open_world) in EXPECTED.items():
         a = got[name].annotations
-        assert (a.readOnlyHint, a.destructiveHint, a.idempotentHint, a.openWorldHint) == (ro, destructive, idem, False), name
+        assert (a.readOnlyHint, a.destructiveHint, a.idempotentHint, a.openWorldHint) == (ro, destructive, idem, open_world), name
         assert got[name].inputSchema["additionalProperties"] is False
 
 

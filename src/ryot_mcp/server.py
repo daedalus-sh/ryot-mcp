@@ -54,8 +54,13 @@ search, my_media, get_collection, similar, trending or upcoming.
 Recording something (log_seen, start, review, add_to_collection) is what the
 person asked for, never a guess: confirm the title (search, then get_title)
 before logging it, and log it once. Ryot applies these in the background, so a
-read straight after may not show the change yet. Nothing here downloads
-anything; getting a title into the library is another tool's job.
+read straight after may not show the change yet.
+
+One tool can start a download. Ryot can be set up to send what is added to a
+collection on to Radarr (movies) or Sonarr (shows), which search the
+indexers and download it. add_to_collection refuses such a collection with
+would_download unless download=true is passed: pass it only when the person
+asked for the title to be downloaded. Nothing else here downloads anything.
 
 Errors come back as {"error": <kind>, "message": ...}. auth_failed means Ryot
 accepts no session: tell the person to mint a token in Ryot (Settings ›

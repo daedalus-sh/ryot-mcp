@@ -49,13 +49,13 @@ def _schema(props: dict[str, Any], required: list[str] | None = None) -> dict[st
     return {"type": "object", "properties": props, "required": required or [], "additionalProperties": False}
 
 
-def _ann(title: str, read_only: bool, destructive: bool, idempotent: bool) -> types.ToolAnnotations:
+def _ann(title: str, read_only: bool, destructive: bool, idempotent: bool, open_world: bool = False) -> types.ToolAnnotations:
     return types.ToolAnnotations(
         title=title,
         readOnlyHint=read_only,
         destructiveHint=destructive,
         idempotentHint=idempotent,
-        openWorldHint=False,
+        openWorldHint=open_world,
     )
 
 
@@ -245,7 +245,8 @@ TOOLS: list[ToolSpec] = [
     ),
     _tool(
         "remove_seen",
-        "Delete one entry from a title's history (a seen_id from get_title): for a watch logged by mistake. Cannot be undone.",
+        "Permanently delete one entry from a title's history (a seen_id from get_title): for a watch logged by "
+        "mistake. It cannot be undone or restored; only logged again by hand.",
         _schema({"seen_id": {"type": "string", "minLength": 1, "maxLength": 64}}, ["seen_id"]),
         _ann("Remove a seen entry", read_only=False, destructive=True, idempotent=True),
         lambda t, a: t.remove_seen(a),
@@ -253,7 +254,8 @@ TOOLS: list[ToolSpec] = [
     _tool(
         "review",
         "Rate and/or review a title, or one episode of a show (season and episode). rating is out of 10 (halves "
-        "allowed), converted to the scale this user picked in Ryot. Private unless public=true. review_id (from "
+        "allowed), converted to the scale this user picked in Ryot. Private unless public=true; a public review "
+        "is shown to the other users of this Ryot server with this user's name. review_id (from "
         "get_title) edits that review instead of adding one.",
         _schema(
             {
@@ -274,20 +276,30 @@ TOOLS: list[ToolSpec] = [
     ),
     _tool(
         "delete_review",
-        "Delete one of this user's reviews (a review_id from get_title). Cannot be undone.",
+        "Permanently delete one of this user's reviews (a review_id from get_title). It cannot be undone or restored.",
         _schema({"review_id": {"type": "string", "minLength": 1, "maxLength": 64}}, ["review_id"]),
         _ann("Delete a review", read_only=False, destructive=True, idempotent=True),
         lambda t, a: t.delete_review(a),
     ),
     _tool(
         "add_to_collection",
-        "Put titles in a collection, the Watchlist unless collection names another. Nothing is downloaded: Ryot "
-        "only records it. Already there is fine.",
+        "Put titles in a collection, the Watchlist unless collection names another. Already there is fine. "
+        "CAN START A DOWNLOAD: if Ryot sends that collection to Radarr or Sonarr (on this server, 'Download'), "
+        "they search the indexers and download each movie or show added. Such a collection is refused with "
+        "would_download (naming where it would go) unless download=true; pass it only when the person asked "
+        "for the title to be downloaded. The result's sent_to says where it went.",
         _schema(
-            {"ids": {"type": "array", "items": ID, "minItems": 1, "maxItems": 50}, "collection": COLLECTION},
+            {
+                "ids": {"type": "array", "items": ID, "minItems": 1, "maxItems": 50},
+                "collection": COLLECTION,
+                "download": {
+                    "type": "boolean",
+                    "description": "Confirms the person asked for a download, for a collection Ryot sends to Radarr or Sonarr.",
+                },
+            },
             ["ids"],
         ),
-        _ann("Add to collection", read_only=False, destructive=False, idempotent=True),
+        _ann("Add to collection (may download)", read_only=False, destructive=False, idempotent=True, open_world=True),
         lambda t, a: t.add_to_collection(a),
     ),
     _tool(

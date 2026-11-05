@@ -8,7 +8,7 @@ from typing import Any
 import pytest
 from conftest import FakeRyot, empty_mine, make, movie, show
 
-from ryot_mcp.errors import InvalidArgument, NotFound, UpstreamError
+from ryot_mcp.errors import InvalidArgument, NotFound, UpstreamError, WouldDownload
 from ryot_mcp.service import rating_in, when
 
 
@@ -383,3 +383,36 @@ def test_tmdb_departments_are_named(fake: FakeRyot) -> None:
     )
     _, t = make(fake)
     assert run(t.get_title({"id": "met_1"}))["people"] == {"Directing": ["Hayao Miyazaki"], "Acting": ["Rumi Hiiragi (Chihiro)"]}
+
+
+def test_a_collection_that_downloads_needs_download_true(fake: FakeRyot) -> None:
+    fake.collections.append({"id": "col_d", "name": "Download", "count": 0, "isDefault": False, "description": None})
+    fake.integrations = [
+        {
+            "id": "int_1",
+            "name": "Radarr",
+            "provider": "RADARR",
+            "isDisabled": False,
+            "providerSpecifics": {"radarrSyncCollectionIds": ["col_d"]},
+        },
+        {
+            "id": "int_2",
+            "name": "Sonarr",
+            "provider": "SONARR",
+            "isDisabled": False,
+            "providerSpecifics": {"sonarrSyncCollectionIds": ["col_d"]},
+        },
+    ]
+    _, t = make(fake)
+    with pytest.raises(WouldDownload) as err:
+        run(t.add_to_collection({"ids": ["met_1"], "collection": "Download"}))
+    assert err.value.detail == {"downloads_to": ["radarr", "sonarr"]}
+    assert fake.ops("DeployAddEntitiesToCollectionJob") == []
+    out = run(t.add_to_collection({"ids": ["met_1"], "collection": "Download", "download": True}))
+    assert out["sent_to"] == ["radarr", "sonarr"]
+    # The Watchlist is synced to nothing, and removing never downloads.
+    assert "sent_to" not in run(t.add_to_collection({"ids": ["met_1"]}))
+    run(t.remove_from_collection({"ids": ["met_1"], "collection": "Download"}))
+    # A disabled integration sends nothing.
+    fake.integrations[0]["isDisabled"] = fake.integrations[1]["isDisabled"] = True
+    assert "sent_to" not in run(t.add_to_collection({"ids": ["met_1"], "collection": "Download"}))

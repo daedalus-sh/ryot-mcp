@@ -332,3 +332,17 @@ def clock() -> Clock:
 def make(fake: FakeRyot, clock: Clock | None = None, region: str | None = "AR", **kw: Any) -> tuple[Ryot, Tracker]:
     ryot = Ryot(settings(**kw), transport=httpx.MockTransport(fake.handler), clock=clock or Clock())
     return ryot, Tracker(ryot, fill_wait=0, watch_region=region)
+
+
+def _synced(fake: FakeRyot, _: dict[str, Any]) -> httpx.Response:
+    return fake._data(
+        {
+            "userIntegrations": [
+                {"provider": i["provider"], "isDisabled": i.get("isDisabled"), "providerSpecifics": i.get("providerSpecifics")}
+                for i in fake.integrations
+            ]
+        }
+    )
+
+
+FakeRyot.op_SyncedCollections = _synced  # type: ignore[attr-defined]

@@ -17,7 +17,7 @@ from typing import Any
 
 from . import queries
 from .client import Ryot
-from .errors import InvalidArgument, NotFound, RyotError, UpstreamError
+from .errors import InvalidArgument, NotFound, RyotError, UpstreamError, WouldDownload
 
 # Tool vocabulary → Ryot's MediaLot.
 KINDS: dict[str, str] = {
@@ -745,13 +745,21 @@ class Tracker:
             raise UpstreamError("Ryot did not delete the review")
         return {"deleted": review_id}
 
-    async def _change_collection(self, args: dict[str, Any], document: str, field: str) -> dict[str, Any]:
+    async def _change_collection(self, args: dict[str, Any], document: str, field: str, *, adding: bool) -> dict[str, Any]:
         ids = args.get("ids") or []
         if not ids:
             raise InvalidArgument("ids must list at least one title id")
         for i in ids:
             _metadata_id({"id": i})
         collection = await self._collection(str(args.get("collection") or "Watchlist"))
+        downloads_to = await self._downloads_to(collection["id"]) if adding else []
+        if downloads_to and args.get("download") is not True:
+            raise WouldDownload(
+                f"Adding to {collection['name']} makes Ryot send each movie to Radarr and each show to Sonarr, "
+                "which search the indexers and download it. Call again with download=true only if the person "
+                "asked for it to be downloaded.",
+                downloads_to=downloads_to,
+            )
         me = await self.ryot.me()
         data = await self.ryot.call(
             document,
@@ -765,13 +773,32 @@ class Tracker:
         )
         if data.get(field) is not True:
             raise UpstreamError("Ryot did not queue the change")
-        return {"queued": True, "collection": collection["name"], "ids": ids}
+        out: dict[str, Any] = {"queued": True, "collection": collection["name"], "ids": ids}
+        if downloads_to:
+            out["sent_to"] = downloads_to
+        return out
+
+    async def _downloads_to(self, collection_id: str) -> list[str]:
+        """Which download services (radarr, sonarr) an enabled integration
+        sends this collection's new titles to."""
+        data = await self.ryot.call(queries.SYNCED_COLLECTIONS)
+        out = []
+        for i in data.get("userIntegrations") or []:
+            if i.get("isDisabled"):
+                continue
+            spec = i.get("providerSpecifics") or {}
+            ids = (spec.get("radarrSyncCollectionIds") or []) + (spec.get("sonarrSyncCollectionIds") or [])
+            if collection_id in ids:
+                out.append(str(i.get("provider") or "").lower())
+        return sorted(set(out))
 
     async def add_to_collection(self, args: dict[str, Any]) -> dict[str, Any]:
-        return await self._change_collection(args, queries.ADD_TO_COLLECTION, "deployAddEntitiesToCollectionJob")
+        return await self._change_collection(args, queries.ADD_TO_COLLECTION, "deployAddEntitiesToCollectionJob", adding=True)
 
     async def remove_from_collection(self, args: dict[str, Any]) -> dict[str, Any]:
-        return await self._change_collection(args, queries.REMOVE_FROM_COLLECTION, "deployRemoveEntitiesFromCollectionJob")
+        return await self._change_collection(
+            args, queries.REMOVE_FROM_COLLECTION, "deployRemoveEntitiesFromCollectionJob", adding=False
+        )
 
     async def create_collection(self, args: dict[str, Any]) -> dict[str, Any]:
         name = str(args.get("name") or "").strip()

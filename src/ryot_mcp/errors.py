@@ -45,3 +45,9 @@ class UpstreamError(RyotError):
     """Ryot answered with an error of its own, or something this server does not understand."""
 
     kind = "upstream_error"
+
+
+class WouldDownload(RyotError):
+    """The collection is synced to Radarr or Sonarr, and download=true was not given."""
+
+    kind = "would_download"
