@@ -121,6 +121,8 @@ class FakeRyot:
     search_fails: bool = False
     # What the fill-in job adds to a stub, by id.
     fill: dict[str, dict[str, Any]] = field(default_factory=dict)
+    integrations: list[dict[str, Any]] = field(default_factory=list)
+    platforms: list[dict[str, Any]] = field(default_factory=list)
 
     def add(self, details: dict[str, Any], mine: dict[str, Any] | None = None) -> None:
         self.metadata[details["id"]] = details
@@ -243,6 +245,29 @@ class FakeRyot:
                 }
             }
         )
+
+    def op_UserIntegrations(self, _: dict[str, Any]) -> httpx.Response:
+        return self._data(
+            {"userIntegrations": [{k: i[k] for k in ("id", "name", "provider", "isDisabled")} for i in self.integrations]}
+        )
+
+    def op_CreateOrUpdateUserIntegration(self, v: dict[str, Any]) -> httpx.Response:
+        given = v["input"]
+        if given.get("integrationId"):
+            current = next(i for i in self.integrations if i["id"] == given["integrationId"])
+            current.update({k: v for k, v in given.items() if k != "integrationId"})
+        else:
+            self.integrations.append({**given, "id": f"int_{len(self.integrations) + 1}"})
+        return self._data({"createOrUpdateUserIntegration": True})
+
+    def op_UserNotificationPlatforms(self, _: dict[str, Any]) -> httpx.Response:
+        return self._data({"userNotificationPlatforms": self.platforms})
+
+    def op_CreateUserNotificationPlatform(self, v: dict[str, Any]) -> httpx.Response:
+        given = v["input"]
+        new = {"id": f"ntf_{len(self.platforms) + 1}", "lot": given["lot"], "description": given["apiToken"], "isDisabled": None}
+        self.platforms.append(new)
+        return self._data({"createUserNotificationPlatform": new["id"]})
 
     def op_DeployAddEntitiesToCollectionJob(self, _: dict[str, Any]) -> httpx.Response:
         return self._data({"deployAddEntitiesToCollectionJob": True})

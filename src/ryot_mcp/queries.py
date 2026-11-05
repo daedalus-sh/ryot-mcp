@@ -162,3 +162,23 @@ mutation CreateOrUpdateReview($input: CreateOrUpdateReviewInput!) { createOrUpda
 DELETE_REVIEW = """
 mutation DeleteReview($reviewId: String!) { deleteReview(reviewId: $reviewId) }
 """
+
+USER_INTEGRATIONS = """
+query UserIntegrations { userIntegrations { id name provider isDisabled } }
+"""
+
+CREATE_OR_UPDATE_INTEGRATION = """
+mutation CreateOrUpdateUserIntegration($input: CreateOrUpdateUserIntegrationInput!) {
+  createOrUpdateUserIntegration(input: $input)
+}
+"""
+
+NOTIFICATION_PLATFORMS = """
+query UserNotificationPlatforms { userNotificationPlatforms { id lot description isDisabled } }
+"""
+
+CREATE_NOTIFICATION_PLATFORM = """
+mutation CreateUserNotificationPlatform($input: CreateUserNotificationPlatformInput!) {
+  createUserNotificationPlatform(input: $input)
+}
+"""

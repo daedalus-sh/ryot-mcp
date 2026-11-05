@@ -7,6 +7,9 @@
                        mints, and save that in RYOT_STATE_DIR
     ryot-mcp status    whether a saved session exists, how old it is, and
                        whether Ryot accepts it (never the session itself)
+    ryot-mcp apply     converge collections, integrations and email
+                       notifications from a JSON spec on stdin (apply.py),
+                       as the signed-in user; print what it did
 
 A running server picks up a session `login` saved on its next call: no
 restart."""
@@ -22,6 +25,7 @@ import sys
 import uvicorn
 
 from . import config
+from .apply import apply
 from .client import Ryot
 from .errors import RyotError
 from .server import build_app
@@ -64,6 +68,24 @@ async def _status(settings: config.Settings) -> int:
     return 0 if status.get("accepted") else 1
 
 
+async def _apply(settings: config.Settings) -> int:
+    try:
+        spec = json.loads(sys.stdin.read())
+    except ValueError as exc:
+        print(f"ryot-mcp: the spec on stdin is not JSON: {exc}", file=sys.stderr)
+        return 2
+    ryot = Ryot(settings)
+    try:
+        report = await apply(ryot, spec)
+    except RyotError as err:
+        print(f"ryot-mcp: {err.message}", file=sys.stderr)
+        return 1
+    finally:
+        await ryot.aclose()
+    print(json.dumps(report))
+    return 0
+
+
 def _serve(settings: config.Settings) -> None:
     ryot = Ryot(settings)
     logging.getLogger("ryot_mcp").info(
@@ -83,8 +105,8 @@ def main() -> None:
     for noisy in ("httpx", "httpcore", "mcp"):
         logging.getLogger(noisy).setLevel(logging.WARNING)
     command = sys.argv[1] if len(sys.argv) > 1 else "serve"
-    if command not in ("serve", "login", "status") or len(sys.argv) > 2:
-        print("usage: ryot-mcp [serve | login | status]", file=sys.stderr)
+    if command not in ("serve", "login", "status", "apply") or len(sys.argv) > 2:
+        print("usage: ryot-mcp [serve | login | status | apply]", file=sys.stderr)
         sys.exit(2)
     try:
         settings = config.load(serving=command == "serve")
@@ -95,6 +117,8 @@ def main() -> None:
         sys.exit(asyncio.run(_login(settings)))
     if command == "status":
         sys.exit(asyncio.run(_status(settings)))
+    if command == "apply":
+        sys.exit(asyncio.run(_apply(settings)))
     _serve(settings)
 
 
