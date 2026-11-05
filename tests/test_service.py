@@ -127,7 +127,7 @@ def test_get_title_merges_details_people_and_my_history(fake: FakeRyot) -> None:
     out = run(t.get_title({"id": "met_1"}))
     assert out["where_to_watch"] == ["Netflix"]
     assert out["runtime_minutes"] == 110
-    assert out["people"] == {"director": ["Hayao Miyazaki"], "actor": ["Rumi Hiiragi (Chihiro)"]}
+    assert out["people"] == {"Director": ["Hayao Miyazaki"], "Actor": ["Rumi Hiiragi (Chihiro)"]}
     assert out["similar_available"] == 2
     me = out["me"]
     assert me["times_seen"] == 1 and me["average_rating"] == 9.0
@@ -335,3 +335,10 @@ def test_a_full_title_is_not_refetched(fake: FakeRyot) -> None:
     _, t = make(fake)
     run(t.get_title({"id": "met_1"}))
     assert fake.ops("DeployUpdateMediaEntityJob") == []
+
+
+def test_plain_text() -> None:
+    from ryot_mcp.service import plain_text
+
+    raw = "<p>The adventure is over.<br>Life goes on &amp; on.</p><p><i>(Source: X)</i></p>"
+    assert plain_text(raw) == "The adventure is over.\nLife goes on & on.\n(Source: X)"

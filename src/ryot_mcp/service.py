@@ -9,6 +9,7 @@ time zone a person is likely to be in) or a full ISO 8601 timestamp."""
 from __future__ import annotations
 
 import asyncio
+import html
 import re
 from datetime import UTC, datetime
 from decimal import Decimal, InvalidOperation
@@ -84,9 +85,33 @@ COLLECTION_SORTS = {
     "random": "RANDOM",
 }
 # The roles worth naming in get_title, in the order they are shown.
-ROLES = ("Director", "Creator", "Author", "Writer", "Developer", "Publisher", "Actor", "Voice Actor", "Artist")
+ROLES = (
+    "Director",
+    "Creator",
+    "Original Creator",
+    "Author",
+    "Writer",
+    "Developer",
+    "Publisher",
+    "Actor",
+    "Voice Actor",
+    "Artist",
+)
 MAX_PEOPLE = 12
 MAX_EPISODES = 2000
+MAX_GENRES = 12
+_TAG = re.compile(r"<[^>]+>")
+_BREAK = re.compile(r"<\s*(br|/p|/li)\s*/?>", re.IGNORECASE)
+
+
+def plain_text(value: str) -> str:
+    """A provider's description (AniList sends HTML) as plain text."""
+    text = _BREAK.sub("\n", value)
+    text = html.unescape(_TAG.sub("", text))
+    lines = [" ".join(line.split()) for line in text.splitlines()]
+    return "\n".join(line for line in lines if line)
+
+
 METADATA_ID = re.compile(r"^[A-Za-z0-9_-]{1,64}$")
 _DATE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
 
@@ -349,14 +374,14 @@ class Tracker:
         for (role, item), who in zip(wanted[:MAX_PEOPLE], resolved, strict=True):
             if who:
                 label = f"{who} ({item['character']})" if item.get("character") else who
-                out.setdefault(role.lower().replace(" ", "_"), []).append(label)
+                out.setdefault(role, []).append(label)
         return out
 
     async def get_title(self, args: dict[str, Any]) -> dict[str, Any]:
         metadata_id = _metadata_id(args)
         details, mine, me = await asyncio.gather(self._full_details(metadata_id), self._mine(metadata_id), self.ryot.me())
         limit = int(args.get("max_description_chars", 2000))
-        description = details.get("description") or ""
+        description = plain_text(details.get("description") or "")
         out: dict[str, Any] = {
             "id": details["id"],
             "title": details.get("title"),
@@ -368,7 +393,8 @@ class Tracker:
             "provider_rating": _rating_out(details.get("providerRating")),
             "status": details.get("productionStatus"),
             "language": details.get("originalLanguage"),
-            "genres": [g["name"] for g in details.get("genres") or []],
+            # AniList's tags arrive as genres, thirty and more of them.
+            "genres": [g["name"] for g in details.get("genres") or []][:MAX_GENRES],
             "where_to_watch": [w["name"] for w in details.get("watchProviders") or []],
             "description": description[:limit] if limit else None,
             "metadata_incomplete": bool(details.get("isPartial")) or None,
