@@ -8,7 +8,7 @@ from typing import Any
 import pytest
 from conftest import FakeRyot, empty_mine, make, movie, show
 
-from ryot_mcp.errors import InvalidArgument, NotFound
+from ryot_mcp.errors import InvalidArgument, NotFound, UpstreamError
 from ryot_mcp.service import rating_in, when
 
 
@@ -298,3 +298,40 @@ def test_ids_are_validated(fake: FakeRyot) -> None:
         run(t.get_title({"id": "../etc/passwd"}))
     with pytest.raises(InvalidArgument):
         run(t.add_to_collection({"ids": []}))
+
+
+def test_search_trims_to_the_limit_ryot_ignores(fake: FakeRyot) -> None:
+    for i in range(8):
+        fake.add(movie(f"met_{i}", f"Film {i}"))
+    fake.search_results = [f"met_{i}" for i in range(8)]
+    _, t = make(fake)
+    out = run(t.search({"kind": "movie", "query": "film", "limit": 3}))
+    assert [r["id"] for r in out["results"]] == ["met_0", "met_1", "met_2"]
+    # Only the three kept were looked up.
+    assert len(fake.ops("MetadataDetails")) == 3
+
+
+def test_a_failed_provider_search_says_a_key_may_be_missing(fake: FakeRyot) -> None:
+    fake.search_fails = True
+    _, t = make(fake)
+    with pytest.raises(UpstreamError, match="needs a key") as err:
+        run(t.search({"kind": "movie", "query": "x"}))
+    assert err.value.detail == {"source": "tmdb"}
+
+
+def test_get_title_fills_in_a_stub_from_search(fake: FakeRyot) -> None:
+    fake.add(movie("met_1", "Frieren", isPartial=True, description=None, genres=[]))
+    fake.fill["met_1"] = {"description": "An elf mage outlives her party.", "genres": [{"name": "Fantasy"}]}
+    _, t = make(fake)
+    out = run(t.get_title({"id": "met_1"}))
+    assert out["description"] == "An elf mage outlives her party."
+    assert out["genres"] == ["Fantasy"]
+    assert "metadata_incomplete" not in out
+    assert fake.ops("DeployUpdateMediaEntityJob") == [{"input": {"entityId": "met_1", "entityLot": "METADATA"}}]
+
+
+def test_a_full_title_is_not_refetched(fake: FakeRyot) -> None:
+    fake.add(movie("met_1", "Spirited Away"))
+    _, t = make(fake)
+    run(t.get_title({"id": "met_1"}))
+    assert fake.ops("DeployUpdateMediaEntityJob") == []

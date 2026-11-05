@@ -118,6 +118,9 @@ class FakeRyot:
     minted: int = 0
     calls: list[tuple[str, dict[str, Any], str | None]] = field(default_factory=list)
     down: bool = False
+    search_fails: bool = False
+    # What the fill-in job adds to a stub, by id.
+    fill: dict[str, dict[str, Any]] = field(default_factory=dict)
 
     def add(self, details: dict[str, Any], mine: dict[str, Any] | None = None) -> None:
         self.metadata[details["id"]] = details
@@ -188,7 +191,17 @@ class FakeRyot:
         self.sessions.add(token)
         return self._data({"generateAuthToken": token})
 
+    def op_DeployUpdateMediaEntityJob(self, v: dict[str, Any]) -> httpx.Response:
+        # Ryot's job fetches the rest from the source; here it is instant.
+        details = self.metadata.get(v["input"]["entityId"])
+        if details is not None:
+            details.update(self.fill.get(details["id"], {}), isPartial=False)
+        return self._data({"deployUpdateMediaEntityJob": True})
+
     def op_MetadataSearch(self, v: dict[str, Any]) -> httpx.Response:
+        if self.search_fails:
+            return self._error("Failed to search metadata")
+        # Like Ryot: the provider's whole page, whatever `take` says.
         return self._data(
             {
                 "metadataSearch": {
@@ -293,4 +306,4 @@ def clock() -> Clock:
 
 def make(fake: FakeRyot, clock: Clock | None = None, **kw: Any) -> tuple[Ryot, Tracker]:
     ryot = Ryot(settings(**kw), transport=httpx.MockTransport(fake.handler), clock=clock or Clock())
-    return ryot, Tracker(ryot)
+    return ryot, Tracker(ryot, fill_wait=0)

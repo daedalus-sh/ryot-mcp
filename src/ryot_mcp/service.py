@@ -185,10 +185,13 @@ def _seen(s: dict[str, Any]) -> dict[str, Any]:
 
 
 class Tracker:
-    def __init__(self, ryot: Ryot, *, concurrency: int = 4) -> None:
+    def __init__(self, ryot: Ryot, *, concurrency: int = 4, fill_wait: float = 1.0, fill_attempts: int = 12) -> None:
         self.ryot = ryot
         self._sem = asyncio.Semaphore(concurrency)
         self._sources: dict[str, list[str]] | None = None
+        # How long get_title waits for Ryot to fill a stub in: 12 × 1 s.
+        self._fill_wait = fill_wait
+        self._fill_attempts = fill_attempts
 
     # ── shared reads ───────────────────────────────────────────────────
 
@@ -212,6 +215,24 @@ class Tracker:
         details = (data.get("metadataDetails") or {}).get("response")
         if not details:
             raise NotFound(f"no title with id {metadata_id}")
+        return details
+
+    async def _full_details(self, metadata_id: str) -> dict[str, Any]:
+        """Details with everything in them. A title found by search is a stub
+        (isPartial: a title and a year) until Ryot fetches the rest from its
+        source; Ryot's own page asks for that fetch and waits for it, and so
+        does this. If the source is slow, the stub is returned as it is."""
+        details = await self._details(metadata_id)
+        if not details.get("isPartial") or details.get("source") == "CUSTOM":
+            return details
+        data = await self.ryot.call(queries.UPDATE_MEDIA_ENTITY, {"input": {"entityId": metadata_id, "entityLot": "METADATA"}})
+        if data.get("deployUpdateMediaEntityJob") is not True:
+            return details
+        for _ in range(self._fill_attempts):
+            await asyncio.sleep(self._fill_wait)
+            details = await self._details(metadata_id)
+            if not details.get("isPartial"):
+                break
         return details
 
     async def _mine(self, metadata_id: str) -> dict[str, Any]:
@@ -273,18 +294,30 @@ class Tracker:
                 raise InvalidArgument(
                     f"source {source} does not serve {args['kind']}; use one of {', '.join(s.lower() for s in available)}"
                 )
-        data = await self.ryot.call(
-            queries.METADATA_SEARCH,
-            {
-                "input": {
-                    "lot": lot,
-                    "source": ryot_source,
-                    "search": {"query": query, "page": _page(args), "take": int(args.get("limit") or 10)},
-                }
-            },
-        )
+        limit = int(args.get("limit") or 10)
+        try:
+            data = await self.ryot.call(
+                queries.METADATA_SEARCH,
+                {
+                    "input": {
+                        "lot": lot,
+                        "source": ryot_source,
+                        "search": {"query": query, "page": _page(args), "take": limit},
+                    }
+                },
+            )
+        except UpstreamError as err:
+            # Ryot's whole message when a provider call fails.
+            if err.message == "Failed to search metadata":
+                raise UpstreamError(
+                    f"Ryot could not search {ryot_source.lower()}: the source is down, or needs a key this Ryot "
+                    "server has not been given (TMDB for movies and shows, Twitch/IGDB for games)",
+                    source=ryot_source.lower(),
+                ) from None
+            raise
         response = (data.get("metadataSearch") or {}).get("response") or {}
-        items = await self._briefs(list(response.get("items") or []))
+        # Ryot returns the provider's whole page whatever `take` says.
+        items = await self._briefs(list(response.get("items") or [])[:limit])
         details = response.get("details") or {}
         return {
             "source": ryot_source.lower(),
@@ -321,7 +354,7 @@ class Tracker:
 
     async def get_title(self, args: dict[str, Any]) -> dict[str, Any]:
         metadata_id = _metadata_id(args)
-        details, mine, me = await asyncio.gather(self._details(metadata_id), self._mine(metadata_id), self.ryot.me())
+        details, mine, me = await asyncio.gather(self._full_details(metadata_id), self._mine(metadata_id), self.ryot.me())
         limit = int(args.get("max_description_chars", 2000))
         description = details.get("description") or ""
         out: dict[str, Any] = {
@@ -396,7 +429,7 @@ class Tracker:
         return {k: v for k, v in out.items() if v not in (None, [], "")}
 
     async def similar(self, args: dict[str, Any]) -> dict[str, Any]:
-        details = await self._details(_metadata_id(args))
+        details = await self._full_details(_metadata_id(args))
         ids = list(details.get("suggestions") or [])[: int(args.get("limit") or 10)]
         return {"for": details.get("title"), "similar": await self._briefs(ids)}
 

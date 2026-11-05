@@ -135,6 +135,12 @@ query UserUpcomingCalendarEvents($input: UserUpcomingCalendarEventInput!) {
 }
 """
 
+UPDATE_MEDIA_ENTITY = """
+mutation DeployUpdateMediaEntityJob($input: EntityWithLotInput!) {
+  deployUpdateMediaEntityJob(input: $input)
+}
+"""
+
 TRENDING = """
 query TrendingMetadata { trendingMetadata }
 """
