@@ -38,8 +38,8 @@ TIMEOUT = httpx.Timeout(30.0, connect=5.0)
 # What Ryot answers when a request's session is missing, unknown or expired.
 AUTH_ERRORS = frozenset({"NO_USER_ID", "NO_SESSION_ID", "SESSION_EXPIRED", "SESSION_INVALID"})
 NO_SESSION = (
-    "Ryot accepted no session. Mint one in Ryot (Settings › Integrations › Generate auth token), "
-    "give it to this server as RYOT_SESSION and restart it."
+    "Ryot accepted no session. Mint one in Ryot (Settings › Integrations › Generate auth token) "
+    "and hand it to this server with `ryot-mcp login`."
 )
 
 
