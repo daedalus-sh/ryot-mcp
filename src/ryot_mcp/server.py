@@ -59,7 +59,7 @@ anything; getting a title into the library is another tool's job.
 
 Errors come back as {"error": <kind>, "message": ...}. auth_failed means Ryot
 accepts no session: tell the person to mint a token in Ryot (Settings ›
-Integrations › Generate auth token) and hand it to this server with its login
+Integrations › Create API token) and hand it to this server with its login
 command, as the error's message says. ryot_unavailable means
 Ryot did not answer: try again later rather than working around it.
 """

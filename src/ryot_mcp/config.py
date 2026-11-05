@@ -27,7 +27,7 @@ class Settings:
     listen_port: int
     url: str
     # The session the operator minted in Ryot (Settings › Integrations ›
-    # Generate auth token). Optional: the saved, renewed one is preferred.
+    # Create API token). Optional: the saved, renewed one is preferred.
     seed_session: str | None = field(repr=False)
     state_dir: Path | None
     renew_after_days: int

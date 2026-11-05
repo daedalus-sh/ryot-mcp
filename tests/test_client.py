@@ -62,7 +62,7 @@ def test_an_unreadable_state_file_is_ignored(fake: FakeRyot, clock: Clock, tmp_p
 
 def test_no_session_at_all(fake: FakeRyot) -> None:
     ryot, _ = make(fake, seed=None)
-    with pytest.raises(AuthFailed, match="Generate auth token"):
+    with pytest.raises(AuthFailed, match="Create API token"):
         run(ryot.session())
 
 

@@ -2,7 +2,7 @@
 
     ryot-mcp           serve MCP on MCP_LISTEN
     ryot-mcp login     read a token minted in Ryot (Settings › Integrations ›
-                       Generate auth token) from the terminal, without echo,
+                       Create API token) from the terminal, without echo,
                        or from stdin; replace it with a session this server
                        mints, and save that in RYOT_STATE_DIR
     ryot-mcp status    whether a saved session exists, how old it is, and
@@ -27,7 +27,7 @@ from .errors import RyotError
 from .server import build_app
 from .service import Tracker
 
-PROMPT = "Ryot token (Settings › Integrations › Generate auth token): "
+PROMPT = "Ryot token (Settings › Integrations › Create API token): "
 
 
 def _read_token() -> str:

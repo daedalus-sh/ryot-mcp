@@ -4,7 +4,7 @@ Ryot authenticates a request with `Authorization: Bearer <session>`. A
 session lasts USERS_TOKEN_VALID_FOR_DAYS (90 by default) from when it was
 minted, and using it does not extend it. So the server keeps its own: it
 starts from the session the operator minted (RYOT_SESSION, from Ryot ›
-Settings › Integrations › Generate auth token), mints a fresh one with
+Settings › Integrations › Create API token), mints a fresh one with
 `generateAuthToken` once the one it holds is RYOT_RENEW_AFTER_DAYS old, and
 saves it in RYOT_STATE_DIR so a restart picks up where it left off. A saved
 session is preferred over the seed, because the seed only ages.
@@ -38,7 +38,7 @@ TIMEOUT = httpx.Timeout(30.0, connect=5.0)
 # What Ryot answers when a request's session is missing, unknown or expired.
 AUTH_ERRORS = frozenset({"NO_USER_ID", "NO_SESSION_ID", "SESSION_EXPIRED", "SESSION_INVALID"})
 NO_SESSION = (
-    "Ryot accepted no session. Mint one in Ryot (Settings › Integrations › Generate auth token) "
+    "Ryot accepted no session. Mint one in Ryot (Settings › Integrations › Create API token) "
     "and hand it to this server with `ryot-mcp login`."
 )
 

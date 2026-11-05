@@ -57,7 +57,7 @@ Ryot authenticates with a session token, and a session lasts
 `USERS_TOKEN_VALID_FOR_DAYS` (90 by default) from when it was minted, however
 often it is used. So the server holds its own:
 
-1. You mint one in Ryot: **Settings › Integrations › Generate auth token**.
+1. You mint one in Ryot: **Settings › Integrations › Create API token**.
 2. You hand it over with `ryot-mcp login` (it asks without echo, or reads
    stdin), or as `RYOT_SESSION` in the environment.
 3. The server checks it and at once mints a fresh one from it with
