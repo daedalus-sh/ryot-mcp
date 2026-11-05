@@ -84,18 +84,24 @@ COLLECTION_SORTS = {
     "provider_rating": "PROVIDER_RATING",
     "random": "RANDOM",
 }
-# The roles worth naming in get_title, in the order they are shown.
+# The roles get_title names, in the order they are shown. Only these: AniList
+# alone lists dozens more per title (every dub's ADR crew, each ending's
+# animators), which would crowd out the director.
 ROLES = (
     "Director",
     "Creator",
     "Original Creator",
+    "Original Story",
     "Author",
     "Writer",
+    "Screenplay",
+    "Series Composition",
     "Developer",
     "Publisher",
     "Actor",
     "Voice Actor",
     "Artist",
+    "Music",
 )
 MAX_PEOPLE = 12
 MAX_EPISODES = 2000
@@ -354,7 +360,7 @@ class Tracker:
     async def _people(self, creators: list[dict[str, Any]]) -> dict[str, list[str]]:
         by_role = {g["name"]: g.get("items") or [] for g in creators}
         wanted: list[tuple[str, dict[str, Any]]] = []
-        for role in [r for r in ROLES if r in by_role] + [r for r in by_role if r not in ROLES]:
+        for role in [r for r in ROLES if r in by_role]:
             for item in by_role[role][:5]:
                 wanted.append((role, item))
         wanted = wanted[: MAX_PEOPLE * 2]

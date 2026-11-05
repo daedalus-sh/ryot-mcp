@@ -342,3 +342,18 @@ def test_plain_text() -> None:
 
     raw = "<p>The adventure is over.<br>Life goes on &amp; on.</p><p><i>(Source: X)</i></p>"
     assert plain_text(raw) == "The adventure is over.\nLife goes on & on.\n(Source: X)"
+
+
+def test_get_title_names_only_the_roles_worth_naming(fake: FakeRyot) -> None:
+    fake.add(
+        movie(
+            "met_1",
+            "Frieren",
+            creators=[
+                {"name": "ADR Director (English)", "items": [{"idOrName": "Jad Saxton", "isFree": True, "character": None}]},
+                {"name": "Director", "items": [{"idOrName": "Keiichirou Saitou", "isFree": True, "character": None}]},
+            ],
+        )
+    )
+    _, t = make(fake)
+    assert run(t.get_title({"id": "met_1"}))["people"] == {"Director": ["Keiichirou Saitou"]}
