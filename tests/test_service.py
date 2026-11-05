@@ -357,3 +357,29 @@ def test_get_title_names_only_the_roles_worth_naming(fake: FakeRyot) -> None:
     )
     _, t = make(fake)
     assert run(t.get_title({"id": "met_1"}))["people"] == {"Director": ["Keiichirou Saitou"]}
+
+
+def test_where_to_watch_is_one_country(fake: FakeRyot) -> None:
+    fake.add(movie("met_1", "Spirited Away"))
+    _, t = make(fake)
+    out = run(t.get_title({"id": "met_1"}))
+    assert (out["where_to_watch"], out["where_to_watch_region"]) == (["Netflix"], "AR")
+    assert run(t.get_title({"id": "met_1", "region": "fr"}))["where_to_watch"] == ["Arte"]
+    _, everywhere = make(fake, region=None)
+    assert run(everywhere.get_title({"id": "met_1"}))["where_to_watch"] == ["Netflix", "Arte"]
+
+
+def test_tmdb_departments_are_named(fake: FakeRyot) -> None:
+    fake.add(
+        movie(
+            "met_1",
+            "Spirited Away",
+            creators=[
+                {"name": "Visual Effects", "items": [{"idOrName": "Someone", "isFree": True, "character": None}]},
+                {"name": "Acting", "items": [{"idOrName": "Rumi Hiiragi", "isFree": True, "character": "Chihiro"}]},
+                {"name": "Directing", "items": [{"idOrName": "Hayao Miyazaki", "isFree": True, "character": None}]},
+            ],
+        )
+    )
+    _, t = make(fake)
+    assert run(t.get_title({"id": "met_1"}))["people"] == {"Directing": ["Hayao Miyazaki"], "Acting": ["Rumi Hiiragi (Chihiro)"]}

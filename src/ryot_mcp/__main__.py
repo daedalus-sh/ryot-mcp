@@ -94,7 +94,7 @@ def _serve(settings: config.Settings) -> None:
         "given" if settings.seed_session else "absent",
         settings.state_dir or "in memory only",
     )
-    app = build_app(settings.token, ryot, Tracker(ryot))
+    app = build_app(settings.token, ryot, Tracker(ryot, watch_region=settings.watch_region))
     uvicorn.run(app, host=settings.listen_host, port=settings.listen_port, access_log=False, log_level="warning")
 
 

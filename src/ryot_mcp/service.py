@@ -86,19 +86,23 @@ COLLECTION_SORTS = {
 }
 # The roles get_title names, in the order they are shown. Only these: AniList
 # alone lists dozens more per title (every dub's ADR crew, each ending's
-# animators), which would crowd out the director.
+# animators), which would crowd out the director. TMDB groups by department
+# (Directing, Writing, Acting) rather than by role; both spellings are here.
 ROLES = (
     "Director",
+    "Directing",
     "Creator",
     "Original Creator",
     "Original Story",
     "Author",
     "Writer",
+    "Writing",
     "Screenplay",
     "Series Composition",
     "Developer",
     "Publisher",
     "Actor",
+    "Acting",
     "Voice Actor",
     "Artist",
     "Music",
@@ -216,8 +220,17 @@ def _seen(s: dict[str, Any]) -> dict[str, Any]:
 
 
 class Tracker:
-    def __init__(self, ryot: Ryot, *, concurrency: int = 4, fill_wait: float = 1.0, fill_attempts: int = 12) -> None:
+    def __init__(
+        self,
+        ryot: Ryot,
+        *,
+        concurrency: int = 4,
+        fill_wait: float = 1.0,
+        fill_attempts: int = 12,
+        watch_region: str | None = None,
+    ) -> None:
         self.ryot = ryot
+        self.watch_region = watch_region
         self._sem = asyncio.Semaphore(concurrency)
         self._sources: dict[str, list[str]] | None = None
         # How long get_title waits for Ryot to fill a stub in: 12 × 1 s.
@@ -383,6 +396,15 @@ class Tracker:
                 out.setdefault(role, []).append(label)
         return out
 
+    def _where(self, providers: list[dict[str, Any]], region: Any) -> list[str]:
+        """The streaming services carrying a title in one country: the call's
+        region, else this server's, else every service in every country.
+        Ryot lists, per service, the country codes it streams in."""
+        wanted = str(region).upper() if region else self.watch_region
+        if not wanted:
+            return [p["name"] for p in providers]
+        return [p["name"] for p in providers if wanted in (p.get("languages") or [])]
+
     async def get_title(self, args: dict[str, Any]) -> dict[str, Any]:
         metadata_id = _metadata_id(args)
         details, mine, me = await asyncio.gather(self._full_details(metadata_id), self._mine(metadata_id), self.ryot.me())
@@ -401,7 +423,8 @@ class Tracker:
             "language": details.get("originalLanguage"),
             # AniList's tags arrive as genres, thirty and more of them.
             "genres": [g["name"] for g in details.get("genres") or []][:MAX_GENRES],
-            "where_to_watch": [w["name"] for w in details.get("watchProviders") or []],
+            "where_to_watch": self._where(details.get("watchProviders") or [], args.get("region")),
+            "where_to_watch_region": (str(args["region"]).upper() if args.get("region") else self.watch_region),
             "description": description[:limit] if limit else None,
             "metadata_incomplete": bool(details.get("isPartial")) or None,
         }

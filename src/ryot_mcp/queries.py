@@ -39,7 +39,7 @@ query MetadataDetails($metadataId: String!) {
       id title lot source identifier isPartial publishYear publishDate description
       providerRating productionStatus originalLanguage sourceUrl suggestions
       genres { name }
-      watchProviders { name }
+      watchProviders { name languages }
       creators { name items { idOrName isFree character } }
       showSpecifics { runtime totalSeasons totalEpisodes seasons { seasonNumber name episodes { episodeNumber } } }
       movieSpecifics { runtime }

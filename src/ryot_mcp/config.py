@@ -31,6 +31,8 @@ class Settings:
     seed_session: str | None = field(repr=False)
     state_dir: Path | None
     renew_after_days: int
+    # ISO 3166 country whose streaming services get_title lists; None = every one.
+    watch_region: str | None = None
 
 
 def _port(name: str, value: str) -> int:
@@ -91,6 +93,15 @@ def _renew_days(value: str) -> int:
     return int(value)
 
 
+def _region(value: str) -> str | None:
+    value = value.strip().upper()
+    if not value:
+        return None
+    if len(value) != 2 or not value.isalpha():
+        raise ConfigError("RYOT_WATCH_REGION must be a two-letter country code, e.g. AR")
+    return value
+
+
 def load(env: Mapping[str, str] | None = None, *, serving: bool = True) -> Settings:
     """The server's settings; with serving=False, what `login` and `status` need
     (no bearer token, and a state directory is required)."""
@@ -109,4 +120,5 @@ def load(env: Mapping[str, str] | None = None, *, serving: bool = True) -> Setti
         seed_session=_session(env.get("RYOT_SESSION", "")),
         state_dir=_state_dir(env.get("RYOT_STATE_DIR", "")),
         renew_after_days=_renew_days(env.get("RYOT_RENEW_AFTER_DAYS", "")),
+        watch_region=_region(env.get("RYOT_WATCH_REGION", "")),
     )

@@ -103,15 +103,20 @@ TOOLS: list[ToolSpec] = [
     ),
     _tool(
         "get_title",
-        "One title in full: year and release date, genres, where it can be streamed, the provider's rating, "
-        "runtime, seasons and episode counts (shows), episodes (anime), pages (books), the main people "
-        "(directors, creators, authors, cast), the description, and this user's side: every time they saw it "
-        "(each with its seen_id, dates, season and episode, and where), what is in progress, the next episode, "
-        "their reviews and ratings (out of 10), and its collections.",
+        "One title in full: year and release date, genres, where it can be streamed (in this server's country, "
+        "or region's), the provider's rating, runtime, seasons and episode counts (shows), episodes (anime), "
+        "pages (books), the main people (directors, creators, authors, cast), the description, and this user's "
+        "side: every time they saw it (each with its seen_id, dates, season and episode, and where), what is in "
+        "progress, the next episode, their reviews and ratings (out of 10), and its collections.",
         _schema(
             {
                 "id": ID,
                 "max_description_chars": {"type": "integer", "minimum": 0, "maximum": 20000, "description": "Default 2000."},
+                "region": {
+                    "type": "string",
+                    "pattern": "^[A-Za-z]{2}$",
+                    "description": "A two-letter country code for where_to_watch, e.g. when travelling.",
+                },
             },
             ["id"],
         ),

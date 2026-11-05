@@ -55,3 +55,10 @@ def test_login_needs_a_state_dir_but_no_bearer(tmp_path: Path) -> None:
         config.load(env, serving=False)
     s = config.load({**env, "RYOT_STATE_DIR": str(tmp_path)}, serving=False)
     assert s.state_dir == tmp_path and s.token == ""
+
+
+def test_watch_region() -> None:
+    assert load(RYOT_WATCH_REGION="ar").watch_region == "AR"
+    assert load().watch_region is None
+    with pytest.raises(config.ConfigError, match="two-letter"):
+        load(RYOT_WATCH_REGION="ARG")

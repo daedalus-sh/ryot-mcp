@@ -54,7 +54,7 @@ def movie(mid: str, title: str, year: int = 2001, **extra: Any) -> dict[str, Any
         "sourceUrl": f"https://www.themoviedb.org/movie/{mid}",
         "suggestions": [],
         "genres": [{"name": "Drama"}],
-        "watchProviders": [{"name": "Netflix"}],
+        "watchProviders": [{"name": "Netflix", "languages": ["AR", "US"]}, {"name": "Arte", "languages": ["FR"]}],
         "creators": [],
         "showSpecifics": None,
         "movieSpecifics": {"runtime": 110},
@@ -329,6 +329,6 @@ def clock() -> Clock:
     return Clock()
 
 
-def make(fake: FakeRyot, clock: Clock | None = None, **kw: Any) -> tuple[Ryot, Tracker]:
+def make(fake: FakeRyot, clock: Clock | None = None, region: str | None = "AR", **kw: Any) -> tuple[Ryot, Tracker]:
     ryot = Ryot(settings(**kw), transport=httpx.MockTransport(fake.handler), clock=clock or Clock())
-    return ryot, Tracker(ryot, fill_wait=0)
+    return ryot, Tracker(ryot, fill_wait=0, watch_region=region)
