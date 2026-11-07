@@ -105,13 +105,20 @@ TOOLS: list[ToolSpec] = [
         "get_title",
         "One title in full: year and release date, genres, where it can be streamed (in this server's country, "
         "or region's), the provider's rating, runtime, seasons and episode counts (shows), episodes (anime), "
-        "pages (books), the main people (directors, creators, authors, cast), the description, and this user's "
-        "side: every time they saw it (each with its seen_id, dates, season and episode, and where), what is in "
-        "progress, the next episode, their reviews and ratings (out of 10), and its collections.",
+        "pages (books), a podcast's episodes (the newest, or those whose title matches episodes_query, each "
+        "with the number log_seen takes and heard when this user finished it), the main people (directors, "
+        "creators, authors, cast), the description, and this user's side: every time they saw it (each with its "
+        "seen_id, dates, season and episode, and where), what is in progress, the next episode, their reviews "
+        "and ratings (out of 10), and its collections.",
         _schema(
             {
                 "id": ID,
                 "max_description_chars": {"type": "integer", "minimum": 0, "maximum": 20000, "description": "Default 2000."},
+                "episodes_query": {
+                    "type": "string",
+                    "maxLength": 200,
+                    "description": "Podcasts: list only the episodes whose title has every one of these words.",
+                },
                 "region": {
                     "type": "string",
                     "pattern": "^[A-Za-z]{2}$",
@@ -197,9 +204,10 @@ TOOLS: list[ToolSpec] = [
     _tool(
         "log_seen",
         "Record that this user finished a title: a movie, a book, a game, an anime or manga (optionally one "
-        "episode, chapter or volume), or a show's episode. For a show, season and episode log one episode, season "
-        "alone logs every episode of that season, and neither logs every episode of every season (specials "
-        "excluded unless include_specials). Dated finished_on, or started_on and finished_on, or date_unknown; "
+        "episode, chapter or volume), a podcast's episode (podcast_episode, required: a number from "
+        "get_title), or a show's episode. For a show, season and episode log one episode, season alone logs "
+        "every episode of that season, and neither logs every episode of every season (specials excluded "
+        "unless include_specials). Dated finished_on, or started_on and finished_on, or date_unknown; "
         "now when none is given. where says where it was watched. Adds a new entry each time it is called, so a "
         "rewatch is a second call; get_title shows the history. Ryot applies it in the background, so a read "
         "straight after may not show it yet.",
@@ -256,7 +264,9 @@ TOOLS: list[ToolSpec] = [
         "Rate and/or review a title, or one episode of a show (season and episode). rating is out of 10 (halves "
         "allowed), converted to the scale this user picked in Ryot. Private unless public=true; a public review "
         "is shown to the other users of this Ryot server with this user's name. review_id (from "
-        "get_title) edits that review instead of adding one.",
+        "get_title) edits that review instead of adding one, changing only what the call gives: the "
+        "rating, text, visibility, spoiler flag and date it leaves out stay as they were. text replaces the whole "
+        "text, so to add to it, send the old text with the addition.",
         _schema(
             {
                 "id": ID,

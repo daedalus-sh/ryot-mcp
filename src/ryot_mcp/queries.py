@@ -46,6 +46,7 @@ query MetadataDetails($metadataId: String!) {
       animeSpecifics { episodes }
       mangaSpecifics { chapters volumes }
       bookSpecifics { pages }
+      podcastSpecifics { totalEpisodes episodes { number title publishDate } }
     }
   }
 }
@@ -56,6 +57,7 @@ id state progress startedOn finishedOn lastUpdatedOn providersConsumedOn
 showExtraInformation { season episode }
 animeExtraInformation { episode }
 mangaExtraInformation { chapter volume }
+podcastExtraInformation { episode }
 """
 
 USER_METADATA_DETAILS = f"""

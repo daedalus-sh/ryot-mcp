@@ -27,7 +27,7 @@ Read
 | Tool | |
 |---|---|
 | `search` | Titles of one kind by name, from Ryot's default source for it (TMDB, AniList, Hardcover or Open Library, IGDB…) or one you name; each with your state. |
-| `get_title` | One title in full: year, genres, where to stream it, runtime, seasons, the main people, the description; and your side: every time you saw it, what is in progress, your reviews, its collections. |
+| `get_title` | One title in full: year, genres, where to stream it, runtime, seasons, a podcast's episodes (newest first, or found by title, each marked heard once you finished it), the main people, the description; and your side: every time you saw it, what is in progress, your reviews, its collections. |
 | `similar` | Titles like one, from its source's suggestions. |
 | `trending` | What is trending now. |
 | `my_media` | What you have seen, rated, started or collected; by kind, filter (rated, unrated, dropped, on hold, unfinished), sort, or title. |
@@ -39,10 +39,10 @@ Write
 
 | Tool | |
 |---|---|
-| `log_seen` | You finished it: dated, or undated, with where. For a show: an episode, a whole season, or every episode at once. |
+| `log_seen` | You finished it: dated, or undated, with where. For a show: an episode, a whole season, or every episode at once. For a podcast: one episode, by its number from `get_title`. |
 | `start` | You started it. |
 | `update_progress` | What is in progress: a percent, or completed, dropped or on hold. |
-| `review` | A rating out of 10 (converted to your Ryot scale) and/or a text; private unless asked; one review can be edited. |
+| `review` | A rating out of 10 (converted to your Ryot scale) and/or a text; private unless asked; one review can be edited, and an edit changes only what it is given (add to the text and the rating stays). |
 | `add_to_collection`, `remove_from_collection` | Watchlist (or any collection) membership. Idempotent. Adding to a collection Ryot sends to Radarr or Sonarr downloads the title, so it needs `download: true`. |
 | `create_collection` | A collection of your own; returns the existing one if the name is taken. |
 | `remove_seen`, `delete_review` | Undo a wrong entry. Destructive. |

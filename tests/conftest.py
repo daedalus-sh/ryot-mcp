@@ -84,6 +84,23 @@ def show(mid: str, title: str, seasons: dict[int, int]) -> dict[str, Any]:
     )
 
 
+def podcast(mid: str, title: str, episodes: int) -> dict[str, Any]:
+    """Episode n is "Episode n", out on day n of 2026-01, so the last is the newest."""
+    return movie(
+        mid,
+        title,
+        lot="PODCAST",
+        source="ITUNES",
+        movieSpecifics=None,
+        podcastSpecifics={
+            "totalEpisodes": episodes,
+            "episodes": [
+                {"number": n, "title": f"Episode {n}", "publishDate": f"2026-01-{n:02d}"} for n in range(1, episodes + 1)
+            ],
+        },
+    )
+
+
 def empty_mine() -> dict[str, Any]:
     return {
         "seenByUserCount": 0,

@@ -6,7 +6,7 @@ import asyncio
 from typing import Any
 
 import pytest
-from conftest import FakeRyot, empty_mine, make, movie, show
+from conftest import FakeRyot, empty_mine, make, movie, podcast, show
 
 from ryot_mcp.errors import InvalidArgument, NotFound, UpstreamError, WouldDownload
 from ryot_mcp.service import rating_in, when
@@ -274,6 +274,83 @@ def test_review_converts_the_rating_to_the_user_s_scale(fake: FakeRyot) -> None:
     assert sent["rating"] == "4.5" and sent["visibility"] == "PRIVATE" and sent["entityLot"] == "METADATA"
     with pytest.raises(InvalidArgument):
         run(t.review({"id": "met_1"}))
+
+
+def _my_review(**extra: Any) -> dict[str, Any]:
+    doc = {
+        "id": "rev_1",
+        "rating": "80",
+        "textOriginal": "A great show.",
+        "isSpoiler": True,
+        "visibility": "PUBLIC",
+        "postedOn": "2026-10-02T00:00:00+00:00",
+        "postedBy": {"id": "usr_me"},
+        "showExtraInformation": None,
+    }
+    doc.update(extra)
+    return doc
+
+
+def test_editing_a_review_keeps_what_the_call_leaves_out(fake: FakeRyot) -> None:
+    fake.add(movie("met_1", "Spirited Away"), {**empty_mine(), "reviews": [_my_review()]})
+    _, t = make(fake)
+    out = run(t.review({"id": "met_1", "review_id": "rev_1", "text": "A great show.\n\nEp 3: the best one."}))
+    assert out == {"review_id": "rev_1", "id": "met_1", "updated": True}
+    sent = fake.ops("CreateOrUpdateReview")[-1]["input"]
+    assert sent == {
+        "entityId": "met_1",
+        "entityLot": "METADATA",
+        "reviewId": "rev_1",
+        "text": "A great show.\n\nEp 3: the best one.",
+        "rating": "4",
+        "visibility": "PUBLIC",
+        "isSpoiler": True,
+        "date": "2026-10-02T00:00:00+00:00",
+    }
+    # A new rating alone keeps the text; public=false makes it private.
+    run(t.review({"id": "met_1", "review_id": "rev_1", "rating": 7, "public": False}))
+    sent = fake.ops("CreateOrUpdateReview")[-1]["input"]
+    assert sent["text"] == "A great show." and sent["rating"] == "3.5" and sent["visibility"] == "PRIVATE"
+
+
+def test_editing_a_review_that_is_not_mine(fake: FakeRyot) -> None:
+    fake.add(movie("met_1", "Spirited Away"), {**empty_mine(), "reviews": [_my_review(postedBy={"id": "usr_other"})]})
+    _, t = make(fake)
+    with pytest.raises(NotFound):
+        run(t.review({"id": "met_1", "review_id": "rev_1", "text": "mine now"}))
+    assert not fake.ops("CreateOrUpdateReview")
+
+
+def test_get_title_lists_a_podcast_s_episodes_newest_first(fake: FakeRyot) -> None:
+    heard = seen(id="see_3", podcastExtraInformation={"episode": 3})
+    started = seen(id="see_4", state="IN_PROGRESS", progress="40", podcastExtraInformation={"episode": 4})
+    fake.add(podcast("met_p", "Radiolab", 25), {**empty_mine(), "seenByUserCount": 1, "history": [heard, started]})
+    _, t = make(fake)
+    out = run(t.get_title({"id": "met_p"}))
+    assert out["total_episodes"] == 25 and out["episodes_not_shown"] == 5
+    assert [e["number"] for e in out["episodes"]] == list(range(25, 5, -1))
+    assert out["episodes"][0] == {"number": 25, "title": "Episode 25", "date": "2026-01-25"}
+    assert [h["episode"] for h in out["me"]["history"]] == [3, 4]
+    # Whole words: "3" is not 13 or 23. Heard only once finished, not when started.
+    found = run(t.get_title({"id": "met_p", "episodes_query": "Episode 3"}))
+    assert found["episodes_matching"] == 1 and "episodes_not_shown" not in found
+    assert found["episodes"] == [{"number": 3, "title": "Episode 3", "date": "2026-01-03", "heard": True}]
+    assert "heard" not in run(t.get_title({"id": "met_p", "episodes_query": "episode 4"}))["episodes"][0]
+    assert run(t.get_title({"id": "met_p", "episodes_query": "nothing"}))["episodes_matching"] == 0
+
+
+def test_log_a_podcast_episode(fake: FakeRyot) -> None:
+    fake.add(podcast("met_p", "Radiolab", 5))
+    _, t = make(fake)
+    out = run(t.log_seen({"id": "met_p", "podcast_episode": 4, "finished_on": "2026-11-06"}))
+    assert out["entries"] == 1
+    change = fake.ops("DeployBulkMetadataProgressUpdate")[0]["input"][0]["change"]["createNewCompleted"]
+    assert change == {"finishedOnDate": {"timestamp": "2026-11-06T12:00:00+00:00", "podcastEpisodeNumber": 4}}
+    with pytest.raises(InvalidArgument, match="podcast_episode"):
+        run(t.log_seen({"id": "met_p"}))
+    with pytest.raises(NotFound, match="no episode 9"):
+        run(t.log_seen({"id": "met_p", "podcast_episode": 9}))
+    assert len(fake.ops("DeployBulkMetadataProgressUpdate")) == 1
 
 
 def test_add_to_the_watchlist(fake: FakeRyot) -> None:

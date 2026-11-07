@@ -110,6 +110,8 @@ ROLES = (
 MAX_PEOPLE = 12
 MAX_EPISODES = 2000
 MAX_GENRES = 12
+# A podcast can have a thousand episodes; get_title lists this many of them.
+MAX_PODCAST_EPISODES = 20
 _TAG = re.compile(r"<[^>]+>")
 _BREAK = re.compile(r"<\s*(br|/p|/li)\s*/?>", re.IGNORECASE)
 
@@ -124,6 +126,7 @@ def plain_text(value: str) -> str:
 
 METADATA_ID = re.compile(r"^[A-Za-z0-9_-]{1,64}$")
 _DATE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
+_WORD = re.compile(r"\w+")
 
 
 def _dec(value: Any) -> float | None:
@@ -214,6 +217,9 @@ def _seen(s: dict[str, Any]) -> dict[str, Any]:
             out["chapter"] = _dec(manga["chapter"])
         if manga.get("volume") is not None:
             out["volume"] = manga["volume"]
+    podcast = s.get("podcastExtraInformation")
+    if podcast and podcast.get("episode") is not None:
+        out["episode"] = podcast["episode"]
     if s.get("providersConsumedOn"):
         out["where"] = s["providersConsumedOn"]
     return {k: v for k, v in out.items() if v is not None}
@@ -405,6 +411,44 @@ class Tracker:
             return [p["name"] for p in providers]
         return [p["name"] for p in providers if wanted in (p.get("languages") or [])]
 
+    @staticmethod
+    def _podcast_episodes(podcast: dict[str, Any], mine: dict[str, Any], query: Any) -> dict[str, Any]:
+        """A podcast's episodes, newest first, or those whose title has every
+        word of query: each with the number log_seen takes, and heard when
+        this user's history has it."""
+        heard = {
+            (s.get("podcastExtraInformation") or {}).get("episode")
+            for s in mine.get("history") or []
+            if s.get("state") == "COMPLETED"
+        }
+        episodes = sorted(
+            podcast.get("episodes") or [],
+            key=lambda e: (e.get("publishDate") or "", e.get("number") or 0),
+            reverse=True,
+        )
+        out: dict[str, Any] = {"total_episodes": podcast.get("totalEpisodes", len(episodes))}
+        if query:
+            # Whole words, so "episode 3" is not also 13 and 23.
+            words = set(_WORD.findall(str(query).casefold()))
+            episodes = [e for e in episodes if words <= set(_WORD.findall((e.get("title") or "").casefold()))]
+            out["episodes_matching"] = len(episodes)
+        out["episodes"] = [
+            {
+                k: v
+                for k, v in {
+                    "number": e.get("number"),
+                    "title": e.get("title"),
+                    "date": e.get("publishDate"),
+                    "heard": True if e.get("number") in heard else None,
+                }.items()
+                if v is not None
+            }
+            for e in episodes[:MAX_PODCAST_EPISODES]
+        ]
+        if len(episodes) > MAX_PODCAST_EPISODES:
+            out["episodes_not_shown"] = len(episodes) - MAX_PODCAST_EPISODES
+        return out
+
     async def get_title(self, args: dict[str, Any]) -> dict[str, Any]:
         metadata_id = _metadata_id(args)
         details, mine, me = await asyncio.gather(self._full_details(metadata_id), self._mine(metadata_id), self.ryot.me())
@@ -450,6 +494,9 @@ class Tracker:
         manga = details.get("mangaSpecifics")
         if manga and manga.get("chapters") is not None:
             out["chapters"] = _dec(manga["chapters"])
+        podcast = details.get("podcastSpecifics")
+        if podcast:
+            out.update(self._podcast_episodes(podcast, mine, args.get("episodes_query")))
         if details.get("creators"):
             out["people"] = await self._people(details["creators"]) or None
         own_reviews = [r for r in mine.get("reviews") or [] if (r.get("postedBy") or {}).get("id") == me.id]
@@ -644,6 +691,17 @@ class Tracker:
             raise InvalidArgument(f"that is {len(pairs)} episodes; log one season at a time")
         return pairs
 
+    @staticmethod
+    def _check_podcast_episode(details: dict[str, Any], args: dict[str, Any]) -> None:
+        """A podcast is heard an episode at a time: podcast_episode is required
+        and, once Ryot lists the episodes, must be one of them."""
+        number = args.get("podcast_episode")
+        if number is None:
+            raise InvalidArgument("say which episode: podcast_episode, a number from get_title's episodes")
+        numbers = {e.get("number") for e in (details.get("podcastSpecifics") or {}).get("episodes") or []}
+        if numbers and number not in numbers:
+            raise NotFound(f"{details.get('title')} has no episode {number}; get_title lists them")
+
     async def log_seen(self, args: dict[str, Any]) -> dict[str, Any]:
         metadata_id = _metadata_id(args)
         details = await self._details(metadata_id)
@@ -665,6 +723,9 @@ class Tracker:
         if details.get("lot") == "SHOW":
             pairs = await self._episodes(details, args)
             entries = [{**base, **position, "showSeasonNumber": s, "showEpisodeNumber": e} for s, e in pairs]
+        elif details.get("lot") == "PODCAST":
+            self._check_podcast_episode(details, args)
+            entries = [{**base, **position}]
         else:
             if args.get("season") is not None or args.get("episode") is not None:
                 raise InvalidArgument("season and episode are for shows; use anime_episode for anime")
@@ -716,24 +777,53 @@ class Tracker:
         if rating is None and not text:
             raise InvalidArgument("give a rating, a text, or both")
         me = await self.ryot.me()
+        # Ryot writes a review whole, so an edit sends back what it does not
+        # change: adding to the text must not drop the rating, or the reverse.
+        old: dict[str, Any] = {}
+        if args.get("review_id"):
+            review_id = _metadata_id(args, "review_id")
+            mine = await self._mine(metadata_id)
+            found = next(
+                (
+                    r
+                    for r in mine.get("reviews") or []
+                    if r.get("id") == review_id and (r.get("postedBy") or {}).get("id") == me.id
+                ),
+                None,
+            )
+            if found is None:
+                raise NotFound(f"no review {review_id} of this user's on {metadata_id}; get_title lists them")
+            old = found
+        if "public" in args:
+            visibility = "PUBLIC" if args["public"] else "PRIVATE"
+        else:
+            visibility = old.get("visibility") or "PRIVATE"
         payload: dict[str, Any] = {
             "entityId": metadata_id,
             "entityLot": "METADATA",
-            "visibility": "PUBLIC" if args.get("public") else "PRIVATE",
-            "isSpoiler": bool(args.get("spoiler")),
+            "visibility": visibility,
+            "isSpoiler": bool(args["spoiler"] if "spoiler" in args else old.get("isSpoiler")),
         }
+        if rating is None and old.get("rating") is not None:
+            rating = _rating_out(old["rating"])
         if rating is not None:
             payload["rating"] = rating_in(float(rating), me.review_scale)
+        text = text or old.get("textOriginal")
         if text:
             payload["text"] = str(text)
-        if args.get("review_id"):
-            payload["reviewId"] = _metadata_id(args, "review_id")
+        if old:
+            payload["reviewId"] = old["id"]
         if args.get("date"):
             payload["date"] = when(args["date"], name="date")
-        if args.get("season") is not None:
-            payload["showSeasonNumber"] = args["season"]
-        if args.get("episode") is not None:
-            payload["showEpisodeNumber"] = args["episode"]
+        elif old.get("postedOn"):
+            payload["date"] = old["postedOn"]
+        old_show = old.get("showExtraInformation") or {}
+        season = args["season"] if args.get("season") is not None else old_show.get("season")
+        episode = args["episode"] if args.get("episode") is not None else old_show.get("episode")
+        if season is not None:
+            payload["showSeasonNumber"] = season
+        if episode is not None:
+            payload["showEpisodeNumber"] = episode
         data = await self.ryot.call(queries.REVIEW, {"input": payload})
         review_id = ((data.get("createOrUpdateReview") or {}).get("id")) or None
         return {"review_id": review_id, "id": metadata_id, "updated": bool(args.get("review_id"))}
