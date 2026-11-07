@@ -42,7 +42,7 @@ python3Packages.buildPythonApplication {
 
   meta = {
     description = "MCP server for Ryot: search titles, log what was watched, played and read, rate and review, keep the Watchlist";
-    homepage = "https://github.com/santiagotoscanini/ryot-mcp";
+    homepage = "https://github.com/daedalus-sh/ryot-mcp";
     license = lib.licenses.mit;
     mainProgram = "ryot-mcp";
     platforms = lib.platforms.linux;

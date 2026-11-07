@@ -92,7 +92,7 @@ without printing it; `GET /healthz` answers `ok` only while Ryot accepts it.
 ## Run
 
 ```
-nix run github:santiagotoscanini/ryot-mcp
+nix run github:daedalus-sh/ryot-mcp
 ```
 
 or install the package (`pip install .`, Python 3.12+) and run `ryot-mcp`.
